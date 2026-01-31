@@ -1,0 +1,15 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# Data directories (large files, generated)
+data/
+
+# IDE
+.vscode/
+.idea/
+
+# UV
+uv.lock

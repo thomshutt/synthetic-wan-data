@@ -1,0 +1,3 @@
+[submodule "musubi-tuner"]
+	path = musubi-tuner
+	url = https://github.com/ryanontheinside/musubi-tuner.git

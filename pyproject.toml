@@ -1,9 +1,19 @@
 [project]
-name = "distill-flux-lora"
+name = "synthetic-wan-data"
 version = "0.1.0"
-description = "Generate datasets from Flux LoRAs for distillation into Wan2.1 LoRAs"
+description = "Pipeline: Scrape CivitAI LoRAs -> Generate image datasets -> Generate video datasets"
 requires-python = ">=3.12"
 dependencies = [
+    # Stage 1: Scraping + prompt expansion (lightweight)
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "tqdm",
+    "ollama>=0.4.0",
+]
+
+[project.optional-dependencies]
+# Stage 2+3: Heavy ML deps for image/video generation
+generate = [
     "torch==2.9.1",
     "torchvision==0.24.1",
     "diffusers>=0.32.0",
@@ -12,7 +22,6 @@ dependencies = [
     "safetensors>=0.6.2",
     "peft>=0.17.0",
     "sentencepiece",
-    "tqdm",
     "imageio[ffmpeg]",
     "ftfy",
 ]

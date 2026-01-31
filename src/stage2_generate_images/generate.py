@@ -1,8 +1,8 @@
 """
-Simple Flux LoRA dataset generator for distilling styles into Wan2.1 LoRAs.
+Stage 2: Flux LoRA dataset generator for distilling styles into Wan2.1 LoRAs.
 
 Usage:
-    python generate_dataset.py --lora path/to/lora.safetensors --prompts prompts.txt --output ./output
+    python -m src.stage2_generate_images.generate --lora path/to/lora.safetensors --prompts prompts.txt --output ./data/image_datasets/my_style
 """
 
 import argparse
@@ -176,7 +176,7 @@ def main():
     parser.add_argument("--flux", type=str, default="black-forest-labs/FLUX.1-dev", help="Flux model path or HuggingFace ID")
     parser.add_argument("--lora", type=str, required=True, help="Path to LoRA safetensors")
     parser.add_argument("--prompts", type=str, required=True, help="Path to prompts file (one per line)")
-    parser.add_argument("--output", type=str, default="./dataset", help="Output directory")
+    parser.add_argument("--output", type=str, default="./data/image_datasets/dataset", help="Output directory")
     parser.add_argument("--num_images", type=int, default=None, help="Number of images to generate (default: number of prompts)")
     parser.add_argument("--lora_scale", type=float, default=1.0, help="LoRA scale/strength")
     parser.add_argument("--style_prefix", type=str, default="", help="Prefix to add to all prompts")
