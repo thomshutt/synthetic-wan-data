@@ -17,7 +17,7 @@ from tqdm import tqdm
 def load_prompts(prompts_file: Path) -> list[str]:
     """Load prompts from file."""
     print(f"[1/4] Loading prompts from {prompts_file}...")
-    with open(prompts_file) as f:
+    with open(prompts_file, encoding="utf-8") as f:
         prompts = [line.strip() for line in f if line.strip()]
     print(f"       Loaded {len(prompts)} prompts")
     return prompts
@@ -32,7 +32,7 @@ def generate_dataset(
     lora_scale: float = 1.0,
     style_prefix: str = "",
     style_suffix: str = "",
-    resolution: tuple[int, int] = (1024, 1024),
+    resolution: tuple[int, int] = (1024, 680),
     guidance_scale: float = 3.5,
     num_steps: int = 28,
     seed: int | None = None,
@@ -88,8 +88,7 @@ def generate_dataset(
         generator.manual_seed(seed)
 
     for i in tqdm(range(num_images), desc="Generating"):
-        # Pick a prompt (cycle through if needed)
-        base_prompt = prompts[i % len(prompts)]
+        base_prompt = prompts[i]
 
         # Add style prefix/suffix
         full_prompt = f"{style_prefix} {base_prompt} {style_suffix}".strip()
@@ -111,9 +110,9 @@ def generate_dataset(
         image_path = output_dir / f"{i:04d}.png"
         image.save(image_path)
 
-        # Save caption
+        # Save caption with custom trigger word
         caption_path = output_dir / f"{i:04d}.txt"
-        caption_path.write_text(full_prompt)
+        caption_path.write_text(f"{full_prompt} ddscope", encoding="utf-8")
 
         tqdm.write(f"  [{i+1}/{num_images}] Saved {image_path.name}")
 
@@ -181,8 +180,8 @@ def main():
     parser.add_argument("--lora_scale", type=float, default=1.0, help="LoRA scale/strength")
     parser.add_argument("--style_prefix", type=str, default="", help="Prefix to add to all prompts")
     parser.add_argument("--style_suffix", type=str, default="", help="Suffix to add to all prompts")
-    parser.add_argument("--width", type=int, default=1024)
-    parser.add_argument("--height", type=int, default=1024)
+    parser.add_argument("--width", type=int, default=1024, help="Image width (default: 1024)")
+    parser.add_argument("--height", type=int, default=680, help="Image height (default: 680, 3:2 ratio for LTX-2)")
     parser.add_argument("--guidance_scale", type=float, default=3.5)
     parser.add_argument("--num_steps", type=int, default=28)
     parser.add_argument("--seed", type=int, default=None)

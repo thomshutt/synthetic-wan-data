@@ -210,14 +210,14 @@ def scrape_lora(url: str, api_key: str, data_dir: Path, download: bool = True) -
     Returns:
         Output metadata dict
     """
-    loras_dir = data_dir / "loras"
-    prompts_dir = data_dir / "prompts"
-    prompts_dir.mkdir(parents=True, exist_ok=True)
-
     # Step 1: Parse URL
     print(f"\n[1/6] Parsing URL...")
     model_id = extract_model_id(url)
     query_version_id = extract_version_id_from_url(url)
+
+    # Create model-specific directory
+    model_dir = data_dir / f"model_{model_id}"
+    model_dir.mkdir(parents=True, exist_ok=True)
     print(f"       Model ID: {model_id}")
     if query_version_id:
         print(f"       Version ID from URL: {query_version_id}")
@@ -241,11 +241,12 @@ def scrape_lora(url: str, api_key: str, data_dir: Path, download: bool = True) -
     print(f"       Trained words: {flux_version.get('trainedWords', [])}")
 
     # Step 4: Download LoRA
-    filename = None
+    lora_path = None
     if download:
         print(f"\n[4/6] Downloading Flux LoRA...")
-        filename = download_lora(flux_version_id, api_key, loras_dir)
-        print(f"       Saved: {loras_dir / filename}")
+        filename = download_lora(flux_version_id, api_key, model_dir)
+        lora_path = model_dir / filename
+        print(f"       Saved: {lora_path}")
     else:
         print(f"\n[4/6] Skipping download (dry run)")
 
@@ -265,11 +266,11 @@ def scrape_lora(url: str, api_key: str, data_dir: Path, download: bool = True) -
         "flux_version_name": flux_version.get("name", ""),
         "flux_base_model": flux_version.get("baseModel", ""),
         "trained_words": flux_version.get("trainedWords", []),
-        "flux_file": filename,
+        "lora_path": str(lora_path) if lora_path else None,
         "all_versions": all_versions,
     }
 
-    json_path = prompts_dir / f"{model_id}_prompts.json"
+    json_path = model_dir / "prompts.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
     print(f"       Saved: {json_path}")
@@ -277,8 +278,9 @@ def scrape_lora(url: str, api_key: str, data_dir: Path, download: bool = True) -
     print(f"\n{'='*50}")
     print(f"Scraping complete!")
     print(f"{'='*50}")
-    if filename:
-        print(f"  LoRA: {loras_dir / filename}")
+    print(f"  Model dir: {model_dir}")
+    if lora_path:
+        print(f"  LoRA: {lora_path}")
     print(f"  Prompts: {json_path}")
     print(f"  Total prompts: {total_prompts}")
     print()
@@ -343,7 +345,8 @@ def main():
     if args.expand_to > 0:
         from src.stage1_scrape.expand_prompts import expand_prompts
 
-        prompts_path = Path(args.data_dir) / "prompts" / f"{result['model_id']}_prompts.json"
+        model_dir = Path(args.data_dir) / f"model_{result['model_id']}"
+        prompts_path = model_dir / "prompts.json"
         expanded_data = expand_prompts(
             input_path=prompts_path,
             target_count=args.expand_to,
@@ -354,14 +357,40 @@ def main():
         with open(prompts_path, "w", encoding="utf-8") as f:
             json.dump(expanded_data, f, indent=2)
 
-        total_prompts = len(expanded_data.get("generated_prompts", []))
+        # Extract all prompts and write to .txt for stage 2
+        # Clean prompts: collapse newlines to spaces for one-prompt-per-line format
+        MIN_WORDS = 3
+        all_prompts = []
+        for p in expanded_data.get("generated_prompts", []):
+            prompt = p.get("prompt", "") if isinstance(p, dict) else p
+            cleaned = " ".join(prompt.split())
+            if len(cleaned.split()) >= MIN_WORDS:
+                all_prompts.append(cleaned)
         for v in expanded_data.get("all_versions", []):
-            total_prompts += len(v.get("prompts", []))
+            for p in v.get("prompts", []):
+                if p.get("prompt"):
+                    cleaned = " ".join(p["prompt"].split())
+                    if len(cleaned.split()) >= MIN_WORDS:
+                        all_prompts.append(cleaned)
+
+        # Pad prompts if we have fewer than target
+        if len(all_prompts) < args.expand_to:
+            import random
+            shortfall = args.expand_to - len(all_prompts)
+            all_prompts = all_prompts + random.choices(all_prompts, k=shortfall)
+            print(f"  Padded prompts: {args.expand_to - shortfall} -> {len(all_prompts)}")
+
+        prompts_txt_path = model_dir / "prompts.txt"
+        with open(prompts_txt_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(all_prompts))
 
         print(f"\n{'=' * 50}")
         print("Pipeline complete!")
         print(f"{'=' * 50}")
-        print(f"  Total prompts: {total_prompts}")
+        print(f"  Model dir: {model_dir}")
+        print(f"  Prompts JSON: {prompts_path}")
+        print(f"  Prompts TXT:  {prompts_txt_path}")
+        print(f"  Total prompts: {len(all_prompts)}")
 
 
 if __name__ == "__main__":
