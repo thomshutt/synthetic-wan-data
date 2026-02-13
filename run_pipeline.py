@@ -28,16 +28,20 @@ Usage:
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
 
-# Default paths (adjust for your system)
+load_dotenv()
+
+# Default paths - set via environment variables in .env or shell
 DATA_DIR = Path("./data")
-VAE_PATH = "C:/Users/ryanf/.daydream-scope/models/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth"
-T5_PATH = "C:/Users/ryanf/.daydream-scope/models/WanVideo_comfy/umt5-xxl-enc-fp8_e4m3fn.safetensors"
-DIT_PATH = "C:/Users/ryanf/.daydream-scope/models/Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors"
+VAE_PATH = os.environ.get("WAN_VAE_PATH", "")
+T5_PATH = os.environ.get("WAN_T5_PATH", "")
+DIT_PATH = os.environ.get("WAN_DIT_PATH", "")
 
 # Default generation settings
 DEFAULT_NUM_IMAGES = 30

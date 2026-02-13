@@ -13,3 +13,13 @@ data/
 
 # UV
 uv.lock
+
+# Personal scripts and notes
+convert_pt_to_safetensors.py
+merge_longlive.py
+renumber_files.py
+replace_trigger_words.py
+train_command.txt
+overnight_commands.txt
+ready_to_train.md
+logs*.txt

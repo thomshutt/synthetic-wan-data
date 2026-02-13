@@ -7,15 +7,17 @@ Stage 1: Scrape   -> Stage 2: Images -> Stage 3: Videos -> Stage 4: Train
 (CivitAI LoRAs)      (Flux + LoRA)      (ComfyUI I2V)      (musubi-tuner)
 ```
 
+> **Note:** Default settings throughout this pipeline (resolutions, training epochs, number of images/videos, learning rates, LoRA rank, etc.) are all experimental and based on limited testing. Results may vary. Thoughtful PRs with improved defaults or new findings are welcome.
+
 ## Prerequisites
 
-- **Ollama** (for prompt expansion) - https://ollama.com
-- **ComfyUI** (for video generation) - see [ComfyUI Setup](#comfyui-setup) below
-- Flux model (will download from HuggingFace by default)
-- Wan2.1 models in `~/.daydream-scope/models/`:
-  - `Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors` (DiT)
-  - `Wan2.1-T2V-1.3B/Wan2.1_VAE.pth` (VAE)
-  - `WanVideo_comfy/umt5-xxl-enc-fp8_e4m3fn.safetensors` (T5 text encoder)
+- **GPU**: NVIDIA GPU with 12+ GB VRAM (24+ GB recommended for 14B video generation)
+- **uv** (Python package manager) - https://docs.astral.sh/uv/
+- **Ollama** (for prompt expansion in stage 1) - https://ollama.com
+- **ComfyUI** (for video generation in stage 3) - https://www.comfy.org
+- **CivitAI API key** (for downloading LoRAs in stage 1) - https://civitai.com/user/account
+- Flux model downloads automatically from HuggingFace in stage 2
+- Wan2.1 models for training (stage 4) - download from https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B
 
 ## Project Structure
 
@@ -35,6 +37,19 @@ synthetic-wan-data/
 ├── train_command.txt           # Collection of training commands
 └── .env                        # API keys (CIVITAI_API)
 ```
+
+---
+
+## Best Practice: Generate More, Cherry Pick
+
+**Generate more data than you need at each stage and manually curate before proceeding:**
+
+1. **Stage 2 (Images):** Generate 50+ images, cherry pick the best 30 for training
+2. **Stage 3 (Videos):** Generate 30 videos from those images, cherry pick the best 10-20
+
+Move rejected files to a `rejected/` subdirectory (e.g., `images/rejected/`, `videos/rejected/`). Subdirectories are ignored by the training pipeline, so you don't need to re-cache.
+
+This ensures your training data is high quality. Bad generations (artifacts, wrong style, failed motion) will hurt your LoRA.
 
 ---
 
@@ -58,15 +73,15 @@ bucket_no_upscale = true
 
 # Image dataset (30 images at 768x768)
 [[datasets]]
-image_directory = "C:/_dev/projects/synthetic-wan-data/data/model_245889/images"
-cache_directory = "C:/_dev/projects/synthetic-wan-data/data/model_245889/cache/images"
+image_directory = "/absolute/path/to/data/model_245889/images"
+cache_directory = "/absolute/path/to/data/model_245889/cache/images"
 resolution = [768, 768]
 num_repeats = 2
 
 # Video dataset (20 videos at 640x640, 33 frames)
 [[datasets]]
-video_directory = "C:/_dev/projects/synthetic-wan-data/data/model_245889/videos"
-cache_directory = "C:/_dev/projects/synthetic-wan-data/data/model_245889/cache/videos"
+video_directory = "/absolute/path/to/data/model_245889/videos"
+cache_directory = "/absolute/path/to/data/model_245889/cache/videos"
 resolution = [640, 640]
 target_frames = [33]
 frame_extraction = "head"
@@ -138,30 +153,60 @@ uv run python src/musubi_tuner/wan_cache_text_encoder_outputs.py --dataset_confi
 
 ## Setup
 
-### 1. Setup this environment (scraping + dataset generation)
+### 1. Clone and install
 
 ```powershell
+git clone https://github.com/your-username/synthetic-wan-data.git
+cd synthetic-wan-data
+git submodule update --init --recursive
+
 # Lightweight install (Stage 1 scraping only)
 uv sync
 
-# Full install (includes Stage 2+3 image/video generation - needs GPU)
+# Full install (includes Stage 2 image generation - needs GPU)
 uv sync --extra generate
 ```
 
-### 2. Setup musubi-tuner environment (training)
+### 2. Environment variables
+
+Create a `.env` file in the project root:
+
+```
+CIVITAI_API=your_api_key_here
+
+# Wan2.1 model paths (required for stage 4 training commands)
+WAN_VAE_PATH=/path/to/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth
+WAN_T5_PATH=/path/to/umt5-xxl-enc-fp8_e4m3fn.safetensors
+WAN_DIT_PATH=/path/to/Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors
+```
+
+Get your CivitAI API key from https://civitai.com/user/account
+
+### 3. ComfyUI Setup (for Stage 3)
+
+Install ComfyUI from https://www.comfy.org and make sure it's running before starting stage 3.
+
+**Load the workflow (pick one):**
+1. **From template:** In ComfyUI go to **Workflow → Browse Templates → Video** and select **Wan2.2 14B I2V**
+2. **From file:** Load `src/stage3_generate_video/video_wan2_2_14B_i2v.json` directly
+
+ComfyUI will automatically download the required models (Wan2.2 I2V 14B, LightX2V LoRAs, VAE, text encoder) on first run. Run the workflow manually once to verify everything works before using the pipeline.
+
+If using a different workflow, you may need to adjust the node IDs in `generate_comfyui.py`.
+
+### 4. Setup musubi-tuner (for Stage 4 training)
 
 ```powershell
 cd musubi-tuner
 uv sync --extra cu130
 ```
 
-### 3. ComfyUI Setup
+Download Wan2.1 models for training:
+- DiT: `Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors`
+- VAE: `Wan2.1-T2V-1.3B/Wan2.1_VAE.pth`
+- T5 text encoder: `umt5-xxl-enc-fp8_e4m3fn.safetensors`
 
-Stage 3 uses ComfyUI for video generation. You need your own ComfyUI installation with:
-- Wan2.1 or Wan2.2 models installed
-- A working I2V (image-to-video) workflow
-
-The included workflow (`src/stage3_generate_video/video_wan2_2_14B_i2v.json`) is based on the Wan2.2 I2V template. You may need to adjust node IDs in `generate_comfyui.py` if using a different workflow.
+From https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B. Update the paths in `run_pipeline.py` to match your local install.
 
 ---
 
@@ -294,15 +339,15 @@ bucket_no_upscale = true
 
 # Images - higher num_repeats for more style influence
 [[datasets]]
-image_directory = "C:/_dev/projects/synthetic-wan-data/data/model_xxx/images"
-cache_directory = "C:/_dev/projects/synthetic-wan-data/data/model_xxx/cache/images"
+image_directory = "/absolute/path/to/data/model_xxx/images"
+cache_directory = "/absolute/path/to/data/model_xxx/cache/images"
 resolution = [768, 768]
 num_repeats = 2
 
 # Videos - MUST specify target_frames!
 [[datasets]]
-video_directory = "C:/_dev/projects/synthetic-wan-data/data/model_xxx/videos"
-cache_directory = "C:/_dev/projects/synthetic-wan-data/data/model_xxx/cache/videos"
+video_directory = "/absolute/path/to/data/model_xxx/videos"
+cache_directory = "/absolute/path/to/data/model_xxx/cache/videos"
 resolution = [640, 640]
 target_frames = [33]
 frame_extraction = "head"
@@ -316,11 +361,11 @@ cd musubi-tuner
 
 uv run python src/musubi_tuner/wan_cache_latents.py \
     --dataset_config "../data/model_xxx/dataset_config.toml" \
-    --vae "C:/Users/ryanf/.daydream-scope/models/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth"
+    --vae "/path/to/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth"
 
 uv run python src/musubi_tuner/wan_cache_text_encoder_outputs.py \
     --dataset_config "../data/model_xxx/dataset_config.toml" \
-    --t5 "C:/Users/ryanf/.daydream-scope/models/WanVideo_comfy/umt5-xxl-enc-fp8_e4m3fn.safetensors"
+    --t5 "/path/to/umt5-xxl-enc-fp8_e4m3fn.safetensors"
 ```
 
 ### Train
@@ -328,7 +373,7 @@ uv run python src/musubi_tuner/wan_cache_text_encoder_outputs.py \
 ```powershell
 uv run accelerate launch --mixed_precision bf16 src/musubi_tuner/wan_train_network.py \
     --task t2v-1.3B \
-    --dit "C:/Users/ryanf/.daydream-scope/models/Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors" \
+    --dit "/path/to/Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors" \
     --dataset_config "../data/model_xxx/dataset_config.toml" \
     --output_dir "./output/model_xxx" \
     --output_name stylename \
@@ -376,14 +421,3 @@ uv run accelerate launch ... \
 
 See `train_command.txt` for a collection of caching and training commands for all models.
 
----
-
-## Environment Variables
-
-Create a `.env` file:
-
-```
-CIVITAI_API=your_api_key_here
-```
-
-Get your API key from https://civitai.com/user/account
