@@ -1,6 +1,6 @@
-# Distill Flux LoRAs to Wan2.1 LoRAs
+# Synthetic Wan Data
 
-Four-stage pipeline for distilling Flux LoRA styles into Wan2.1 video LoRAs.
+Transfer Flux LoRA styles to Wan2.1 video LoRAs using synthetic data. Generates images with Flux + LoRA, converts them to videos via ComfyUI, then trains a Wan2.1 LoRA on the resulting dataset.
 
 ```
 Stage 1: Scrape   -> Stage 2: Images -> Stage 3: Videos -> Stage 4: Train
@@ -169,18 +169,13 @@ uv sync --extra generate
 
 ### 2. Environment variables
 
-Create a `.env` file in the project root:
+Copy the sample and fill in your values:
 
-```
-CIVITAI_API=your_api_key_here
-
-# Wan2.1 model paths (required for stage 4 training commands)
-WAN_VAE_PATH=/path/to/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth
-WAN_T5_PATH=/path/to/umt5-xxl-enc-fp8_e4m3fn.safetensors
-WAN_DIT_PATH=/path/to/Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors
+```powershell
+cp .env.example .env
 ```
 
-Get your CivitAI API key from https://civitai.com/user/account
+Edit `.env` with your CivitAI API key (from https://civitai.com/user/account) and Wan2.1 model paths. See `.env.example` for all available settings.
 
 ### 3. ComfyUI Setup (for Stage 3)
 
